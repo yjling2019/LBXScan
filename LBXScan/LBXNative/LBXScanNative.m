@@ -206,12 +206,8 @@
     
     
     if (_blockvideoMaxScale) {
-        
         AVCaptureConnection *videoConnection = [self connectionWithMediaType:AVMediaTypeVideo fromConnections:[[self stillImageOutput] connections]];
         CGFloat maxScale = videoConnection.videoMaxScaleAndCropFactor;
-        CGFloat scale = videoConnection.videoScaleAndCropFactor;
-        NSLog(@"max:%F cur:%f",maxScale,scale);
-        
         _blockvideoMaxScale(maxScale);
     }
 
@@ -324,8 +320,6 @@
 - (void)observeValueForKeyPath:(NSString *)keyPath ofObject:(id)object change:(NSDictionary *)change context:(void *)context
 {
     if ( object == _input.device ) {
-        
-        NSLog(@"flash change");
     }
 }
 
@@ -441,17 +435,6 @@
 #pragma mark AVCaptureMetadataOutputObjectsDelegate
 - (void)captureOutput2:(AVCaptureOutput *)captureOutput didOutputMetadataObjects:(NSArray *)metadataObjects fromConnection:(AVCaptureConnection *)connection
 {
-    //识别扫码类型
-    for(AVMetadataObject *current in metadataObjects)
-    {
-        if ([current isKindOfClass:[AVMetadataMachineReadableCodeObject class]] )
-        {
-            NSString *scannedResult = [(AVMetadataMachineReadableCodeObject *) current stringValue];
-            NSLog(@"type:%@",current.type);
-            NSLog(@"result:%@",scannedResult);
-            //测试可以同时识别多个二维码
-        }
-    }
 }
 
 - (void)captureOutput:(AVCaptureOutput *)captureOutput didOutputMetadataObjects:(NSArray *)metadataObjects fromConnection:(AVCaptureConnection *)connection
@@ -479,15 +462,12 @@
         if ([current isKindOfClass:[AVMetadataMachineReadableCodeObject class]] )
         {
             bNeedScanResult = NO;
-            
-            NSLog(@"type:%@",current.type);
-            NSString *scannedResult = [(AVMetadataMachineReadableCodeObject *) current stringValue];
+					
+			NSString *scannedResult = [(AVMetadataMachineReadableCodeObject *) current stringValue];
             
             NSArray<NSDictionary *> *corners = ((AVMetadataMachineReadableCodeObject *) current).corners;
             CGRect bounds  = ((AVMetadataMachineReadableCodeObject *) current).bounds;
-                       
-            NSLog(@"corners:%@ bounds:%@",corners,NSStringFromCGRect( bounds ));
-            
+		
             if (scannedResult && ![scannedResult isEqualToString:@""])
             {
                 LBXScanResult *result = [LBXScanResult new];
@@ -550,7 +530,6 @@
     
     for (NSDictionary *dic in corners) {
         CGPoint pt = [self pointForCorner:dic];
-        NSLog(@"pt:%@",NSStringFromCGPoint(pt));
         totalX += pt.x;
         totalY += pt.y;
     }
@@ -558,12 +537,8 @@
     CGFloat averX = totalX / corners.count;
     CGFloat averY = totalY / corners.count;
     
-   
-    
     CGFloat minSize = MIN(bounds.size.width , bounds.size.height);
     
-     NSLog(@"averx:%f,avery:%f minsize:%f",averX,averY,minSize);
-
     dispatch_async(dispatch_get_main_queue(), ^{
              
         [self signCodeWithCenterX:averX centerY:averY];
@@ -604,9 +579,6 @@
     
     //计算二维码尺寸，然后计算放大比例
     CGFloat scale  = 100 / minSize * 1.1;
-    
-    
-    NSLog(@"diffX:%f,diffY:%f,scale:%f",diffX,diffY,scale);
     
     diffX = diffX / MAX(1, scale * 0.8);
     diffY = diffY / MAX(1, scale * 0.8);

@@ -15,18 +15,15 @@
 
 @implementation LBXScanViewController
 
-
-- (void)viewDidLoad {
+- (void)viewDidLoad
+{
     [super viewDidLoad];
-    // Do any additional setup after loading the view.
     
     if ([self respondsToSelector:@selector(setEdgesForExtendedLayout:)]) {
-        
         self.edgesForExtendedLayout = UIRectEdgeNone;
     }
     
     self.view.backgroundColor = [UIColor blackColor];
-    
 
     switch (_libraryType) {
         case SLT_Native:
@@ -41,30 +38,40 @@
         default:
             break;
     }
+	
+	[self drawScanView];
 }
 
 - (void)viewDidAppear:(BOOL)animated
 {
     [super viewDidAppear:animated];
-    
-    [self drawScanView];
-    
+        
     [self requestCameraPemissionWithResult:^(BOOL granted) {
 
-        if (granted) {
-
-            //不延时，可能会导致界面黑屏并卡住一会
-            [self performSelector:@selector(startScan) withObject:nil afterDelay:0.3];
-
-        }else{
-
 #ifdef LBXScan_Define_UI
-            [self.qRScanView stopDeviceReadying];
+		[self.qRScanView stopDeviceReadying];
 #endif
 
-        }
+		if (!granted) {
+			return;
+		}
+		
+		//不延时，可能会导致界面黑屏并卡住一会
+		[self performSelector:@selector(startScan) withObject:nil afterDelay:0.1];
     }];
-   
+}
+
+- (void)viewWillDisappear:(BOOL)animated
+{
+	[super viewWillDisappear:animated];
+	
+	[NSObject cancelPreviousPerformRequestsWithTarget:self];
+ 
+	[self stopScan];
+	
+#ifdef LBXScan_Define_UI
+	[_qRScanView stopScanAnimation];
+#endif
 }
 
 //绘制扫描区域
@@ -72,19 +79,12 @@
 {
 #ifdef LBXScan_Define_UI
     
-    if (!_qRScanView)
-    {
+    if (!_qRScanView) {
         CGRect rect = self.view.frame;
         rect.origin = CGPointMake(0, 0);
         
         self.qRScanView = [[LBXScanView alloc]initWithFrame:rect style:_style];
-        
         [self.view addSubview:_qRScanView];
-    }
-    
-    if (!_cameraInvokeMsg) {
-        
-//        _cameraInvokeMsg = NSLocalizedString(@"wating...", nil);
     }
     
     [_qRScanView startDeviceReadyingWithText:_cameraInvokeMsg];
@@ -94,31 +94,30 @@
 - (void)reStartDevice
 {
     switch (_libraryType) {
-        case SLT_Native:
-        {
+        case SLT_Native: {
 #ifdef LBXScan_Define_Native
             [_scanObj startScan];
 #endif
         }
             break;
-        case SLT_ZXing:
-        {
+			
+        case SLT_ZXing: {
 #ifdef LBXScan_Define_ZXing
             [_zxingObj start];
 #endif
         }
             break;
-        case SLT_ZBar:
-        {
+			
+        case SLT_ZBar: {
 #ifdef LBXScan_Define_ZBar
             [_zbarObj start];
 #endif
         }
             break;
+			
         default:
             break;
     }
-    
 }
 
 //启动设备
@@ -129,96 +128,81 @@
     [self.view insertSubview:videoView atIndex:0];
     __weak __typeof(self) weakSelf = self;
     
-    switch (_libraryType) {
-        case SLT_Native:
-        {
-
-            
+	switch (_libraryType) {
+		case SLT_Native: {
 #ifdef LBXScan_Define_Native
-            
-            if (!_scanObj )
-            {
-                CGRect cropRect = CGRectZero;
-                
-                if (_isOpenInterestRect) {
-                    
-                    //设置只识别框内区域
-                    cropRect = [LBXScanView getScanRectWithPreView:self.view style:_style];
-                }
+			if (!_scanObj) {
+				CGRect cropRect = CGRectZero;
+				if (_isOpenInterestRect) {
+					//设置只识别框内区域
+					cropRect = [LBXScanView getScanRectWithPreView:self.view style:_style];
+				}
 
-                NSString *strCode = AVMetadataObjectTypeQRCode;
-                if (_scanCodeType != SCT_BarCodeITF ) {
-                    
-                    strCode = [self nativeCodeWithType:_scanCodeType];
-                }
-                
-                //AVMetadataObjectTypeITF14Code 扫码效果不行,另外只能输入一个码制，虽然接口是可以输入多个码制
-                self.scanObj = [[LBXScanNative alloc]initWithPreView:videoView ObjectType:@[strCode] cropRect:cropRect success:^(NSArray<LBXScanResult *> *array) {
-                    
-                    [weakSelf scanResultWithArray:array];
-                }];
-                [_scanObj setNeedCaptureImage:_isNeedScanImage];
-            }
-            [_scanObj startScan];
+				NSString *strCode = AVMetadataObjectTypeQRCode;
+				if (_scanCodeType != SCT_BarCodeITF ) {
+					strCode = [self nativeCodeWithType:_scanCodeType];
+				}
+				
+				//AVMetadataObjectTypeITF14Code 扫码效果不行,另外只能输入一个码制，虽然接口是可以输入多个码制
+				self.scanObj = [[LBXScanNative alloc]initWithPreView:videoView ObjectType:@[strCode] cropRect:cropRect success:^(NSArray<LBXScanResult *> *array) {
+					
+					[weakSelf scanResultWithArray:array];
+				}];
+				[_scanObj setNeedCaptureImage:_isNeedScanImage];
+			}
+			[_scanObj startScan];
 #endif
-
-        }
-            break;
-        case SLT_ZXing:
-        {
-
+		}
+			break;
+			
+		case SLT_ZXing: {
 #ifdef LBXScan_Define_ZXing
-            if (!_zxingObj) {
-                
-                __weak __typeof(self) weakSelf = self;
-                self.zxingObj = [[ZXingWrapper alloc]initWithPreView:videoView block:^(ZXBarcodeFormat barcodeFormat, NSString *str, UIImage *scanImg) {
-                    
-                    LBXScanResult *result = [[LBXScanResult alloc]init];
-                    result.strScanned = str;
-                    result.imgScanned = scanImg;
-                    result.strBarCodeType = [weakSelf convertZXBarcodeFormat:barcodeFormat];
-                    
-                    [weakSelf scanResultWithArray:@[result]];
-                    
-                }];
-                
-                if (_isOpenInterestRect) {
-                    
-                    //设置只识别框内区域
-                    CGRect cropRect = [LBXScanView getZXingScanRectWithPreView:videoView style:_style];
-                                        
-                     [_zxingObj setScanRect:cropRect];
-                }               
-            }
-            [_zxingObj start];
+			if (!_zxingObj) {
+				__weak __typeof(self) weakSelf = self;
+				self.zxingObj = [[ZXingWrapper alloc]initWithPreView:videoView block:^(ZXBarcodeFormat barcodeFormat, NSString *str, UIImage *scanImg) {
+					LBXScanResult *result = [[LBXScanResult alloc]init];
+					result.strScanned = str;
+					result.imgScanned = scanImg;
+					result.strBarCodeType = [weakSelf convertZXBarcodeFormat:barcodeFormat];
+					[weakSelf scanResultWithArray:@[result]];
+				}];
+				
+				if (_isOpenInterestRect) {
+					//设置只识别框内区域
+					CGRect cropRect = [LBXScanView getZXingScanRectWithPreView:videoView style:_style];
+					[_zxingObj setScanRect:cropRect];
+				}
+			}
+			[_zxingObj start];
 #endif
-        }
-            break;
-        case SLT_ZBar:
-        {
+		}
+			break;
+			
+		case SLT_ZBar: {
 #ifdef LBXScan_Define_ZBar
-            if (!_zbarObj) {
-                
-                self.zbarObj = [[LBXZBarWrapper alloc]initWithPreView:videoView barCodeType:[self zbarTypeWithScanType:_scanCodeType] block:^(NSArray<LBXZbarResult *> *result) {
-                    
-                    //测试，只使用扫码结果第一项
-                    LBXZbarResult *firstObj = result[0];
-                    
-                    LBXScanResult *scanResult = [[LBXScanResult alloc]init];
-                    scanResult.strScanned = firstObj.strScanned;
-                    scanResult.imgScanned = firstObj.imgScanned;
-                    scanResult.strBarCodeType = [LBXZBarWrapper convertFormat2String:firstObj.format];
-                    
-                    [weakSelf scanResultWithArray:@[scanResult]];
-                }];
-            }
-            [_zbarObj start];
+			if (!_zbarObj) {
+				self.zbarObj = [[LBXZBarWrapper alloc]initWithPreView:videoView
+														  barCodeType:[self zbarTypeWithScanType:_scanCodeType]
+																block:^(NSArray<LBXZbarResult *> *result) {
+					
+					//测试，只使用扫码结果第一项
+					LBXZbarResult *firstObj = result[0];
+					LBXScanResult *scanResult = [[LBXScanResult alloc]init];
+					scanResult.strScanned = firstObj.strScanned;
+					scanResult.imgScanned = firstObj.imgScanned;
+					scanResult.strBarCodeType = [LBXZBarWrapper convertFormat2String:firstObj.format];
+					
+					[weakSelf scanResultWithArray:@[scanResult]];
+				}];
+			}
+			[_zbarObj start];
 #endif
-        }
-            break;
-        default:
-            break;
-    }
+		}
+			break;
+			
+		default:
+			break;
+	}
     
 #ifdef LBXScan_Define_UI
     [_qRScanView stopDeviceReadying];
@@ -256,47 +240,33 @@
 }
 #endif
 
-- (void)viewWillDisappear:(BOOL)animated
-{
-    [super viewWillDisappear:animated];
-    
-    [NSObject cancelPreviousPerformRequestsWithTarget:self];
- 
-    [self stopScan];
-    
-#ifdef LBXScan_Define_UI
-    [_qRScanView stopScanAnimation];
-#endif
-}
-
 - (void)stopScan
 {
     switch (_libraryType) {
-        case SLT_Native:
-        {
+        case SLT_Native: {
 #ifdef LBXScan_Define_Native
             [_scanObj stopScan];
 #endif
         }
             break;
-        case SLT_ZXing:
-        {
+			
+        case SLT_ZXing: {
 #ifdef LBXScan_Define_ZXing
             [_zxingObj stop];
 #endif
         }
             break;
-        case SLT_ZBar:
-        {
+			
+        case SLT_ZBar: {
 #ifdef LBXScan_Define_ZBar
             [_zbarObj stop];
 #endif
         }
-            break;
+			break;
+			
         default:
             break;
     }
-
 }
 
 #pragma mark -扫码结果处理
@@ -312,142 +282,112 @@
 }
 
 
-
 //开关闪光灯
 - (void)openOrCloseFlash
 {
-    
     switch (_libraryType) {
-        case SLT_Native:
-        {
+        case SLT_Native: {
 #ifdef LBXScan_Define_Native
             [_scanObj changeTorch];
 #endif
         }
             break;
-        case SLT_ZXing:
-        {
+			
+        case SLT_ZXing: {
 #ifdef LBXScan_Define_ZXing
             [_zxingObj openOrCloseTorch];
 #endif
         }
             break;
-        case SLT_ZBar:
-        {
+			
+        case SLT_ZBar: {
 #ifdef LBXScan_Define_ZBar
             [_zbarObj openOrCloseFlash];
 #endif
         }
             break;
+			
         default:
             break;
     }
     self.isOpenFlash =!self.isOpenFlash;
 }
 
-
 #pragma mark --打开相册并识别图片
-
-/*!
- *  打开本地照片，选择图片识别
- */
+// 打开本地照片，选择图片识别
 - (void)openLocalPhoto:(BOOL)allowsEditing
 {
     UIImagePickerController *picker = [[UIImagePickerController alloc] init];
-    
     picker.sourceType = UIImagePickerControllerSourceTypePhotoLibrary;
-    
     picker.delegate = self;
-   
     //部分机型有问题
     picker.allowsEditing = allowsEditing;
-    
-    
     [self presentViewController:picker animated:YES completion:nil];
 }
 
-
-
 //当选择一张图片后进入这里
-
 -(void)imagePickerController:(UIImagePickerController*)picker didFinishPickingMediaWithInfo:(NSDictionary *)info
 {
     [picker dismissViewControllerAnimated:YES completion:nil];    
     
     __block UIImage* image = [info objectForKey:UIImagePickerControllerEditedImage];
-    
-    if (!image){
+    if (!image) {
         image = [info objectForKey:UIImagePickerControllerOriginalImage];
     }
     
     __weak __typeof(self) weakSelf = self;
         
     switch (_libraryType) {
-        case SLT_Native:
-        {
+        case SLT_Native: {
 #ifdef LBXScan_Define_Native
-            if ([[[UIDevice currentDevice]systemVersion]floatValue] >= 8.0)
-            {
+            if ([[[UIDevice currentDevice]systemVersion]floatValue] >= 8.0) {
                 [LBXScanNative recognizeImage:image success:^(NSArray<LBXScanResult *> *array) {
                     [weakSelf scanResultWithArray:array];
                 }];
-            }
-            else
-            {
+            } else {
                 [self showError:@"native低于ios8.0系统不支持识别图片条码"];
             }
 #endif
         }
             break;
-        case SLT_ZXing:
-        {
+			
+        case SLT_ZXing: {
 #ifdef LBXScan_Define_ZXing
-            
             [ZXingWrapper recognizeImage:image block:^(ZXBarcodeFormat barcodeFormat, NSString *str) {
-                
                 LBXScanResult *result = [[LBXScanResult alloc]init];
                 result.strScanned = str;
                 result.imgScanned = image;
                 result.strBarCodeType = [self convertZXBarcodeFormat:barcodeFormat];
-                
                 [weakSelf scanResultWithArray:@[result]];
             }];
 #endif
-            
         }
             break;
-        case SLT_ZBar:
-        {
+      
+		case SLT_ZBar: {
 #ifdef LBXScan_Define_ZBar
             [LBXZBarWrapper recognizeImage:image block:^(NSArray<LBXZbarResult *> *result) {
-                
                 //测试，只使用扫码结果第一项
                 LBXZbarResult *firstObj = result[0];
-                
                 LBXScanResult *scanResult = [[LBXScanResult alloc]init];
                 scanResult.strScanned = firstObj.strScanned;
                 scanResult.imgScanned = firstObj.imgScanned;
                 scanResult.strBarCodeType = [LBXZBarWrapper convertFormat2String:firstObj.format];
-                
                 [weakSelf scanResultWithArray:@[scanResult]];
-                
             }];
 #endif
-            
         }
             break;
-            
+			
         default:
             break;
     }
 }
+
 - (void)imagePickerControllerDidCancel:(UIImagePickerController *)picker
 {
-    NSLog(@"cancel");
-    
     [picker dismissViewControllerAnimated:YES completion:nil];
 }
-
 
 #ifdef LBXScan_Define_ZXing
 - (NSString*)convertZXBarcodeFormat:(ZXBarcodeFormat)barCodeFormat
@@ -498,28 +438,30 @@
             break;
     }
     
-    
     return strAVMetadataObjectType;
 }
 #endif
 
-
-- (NSString*)nativeCodeWithType:(SCANCODETYPE)type
+- (NSString *)nativeCodeWithType:(SCANCODETYPE)type
 {
     switch (type) {
         case SCT_QRCode:
             return AVMetadataObjectTypeQRCode;
             break;
+			
         case SCT_BarCode93:
             return AVMetadataObjectTypeCode93Code;
             break;
-        case SCT_BarCode128:
+        
+		case SCT_BarCode128:
             return AVMetadataObjectTypeCode128Code;
             break;
-        case SCT_BarCodeITF:
+        
+		case SCT_BarCodeITF:
             return @"ITF条码:only ZXing支持";
             break;
-        case SCT_BarEAN13:
+        
+		case SCT_BarEAN13:
             return AVMetadataObjectTypeEAN13Code;
             break;
 
@@ -531,70 +473,59 @@
 
 - (void)showError:(NSString*)str
 {
-    
 }
 
 - (void)requestCameraPemissionWithResult:(void(^)( BOOL granted))completion
 {
-    if ([AVCaptureDevice respondsToSelector:@selector(authorizationStatusForMediaType:)])
-    {
-        AVAuthorizationStatus permission =
-        [AVCaptureDevice authorizationStatusForMediaType:AVMediaTypeVideo];
-        
-        switch (permission) {
-            case AVAuthorizationStatusAuthorized:
-                completion(YES);
-                break;
-            case AVAuthorizationStatusDenied:
-            case AVAuthorizationStatusRestricted:
-                completion(NO);
-                break;
-            case AVAuthorizationStatusNotDetermined:
-            {
-                [AVCaptureDevice requestAccessForMediaType:AVMediaTypeVideo
-                                         completionHandler:^(BOOL granted) {
-                                             
-                                             dispatch_async(dispatch_get_main_queue(), ^{
-                                                 if (granted) {
-                                                     completion(true);
-                                                 } else {
-                                                     completion(false);
-                                                 }
-                                             });
-                                             
-                                         }];
-            }
-                break;
-                
-        }
-    }
-    
-    
+    if (![AVCaptureDevice respondsToSelector:@selector(authorizationStatusForMediaType:)]) {
+		return;
+	}
+	
+	AVAuthorizationStatus permission = [AVCaptureDevice authorizationStatusForMediaType:AVMediaTypeVideo];
+	
+	switch (permission) {
+		case AVAuthorizationStatusAuthorized:
+			completion(YES);
+			break;
+			
+		case AVAuthorizationStatusDenied:
+		case AVAuthorizationStatusRestricted:
+			completion(NO);
+			break;
+			
+		case AVAuthorizationStatusNotDetermined: {
+			[AVCaptureDevice requestAccessForMediaType:AVMediaTypeVideo
+									 completionHandler:^(BOOL granted) {
+										 dispatch_async(dispatch_get_main_queue(), ^{
+											 if (granted) {
+												 completion(true);
+											 } else {
+												 completion(false);
+											 }
+										 });
+									 }];
+		}
+			break;
+	}
 }
 
 + (BOOL)photoPermission
 {
     if (@available(iOS 8.0, *)) {
-        
         PHAuthorizationStatus authorStatus = [PHPhotoLibrary authorizationStatus];
-        if ( authorStatus == PHAuthorizationStatusDenied ) {
-            
+        if (authorStatus == PHAuthorizationStatusDenied) {
             return NO;
         }
-        
-    }else{
-        
+    } else {
         ALAuthorizationStatus author = [ALAssetsLibrary authorizationStatus];
-        
-        if ( author == ALAuthorizationStatusDenied ) {
-            
+        if (author == ALAuthorizationStatusDenied) {
             return NO;
-        }
-        return YES;
+		} else {
+			return YES;
+		}
     }
     
     return NO;
 }
-
 
 @end
