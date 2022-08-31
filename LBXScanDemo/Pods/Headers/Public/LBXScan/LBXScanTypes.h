@@ -1,1 +1,1 @@
-../../../../../LBXScan/LBXScanTypes.h
+../../../LBXScan/LBXScan/LBXScanTypes.h

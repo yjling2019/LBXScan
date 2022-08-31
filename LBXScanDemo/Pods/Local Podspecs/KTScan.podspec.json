@@ -1,18 +1,18 @@
 {
-  "name": "LBXScan",
-  "version": "2.4.1",
-  "summary": "ios scan wrapper",
-  "homepage": "https://github.com/MxABC/LBXScan",
+  "name": "KTScan",
+  "version": "2.5.2",
+  "summary": "ios scan wrapper, fork from LBXScan",
+  "homepage": "https://github.com/yjling2019/LBXScan",
   "license": "MIT",
   "authors": {
-    "lbxia": "lbxia20091227@foxmail.com"
+    "lbxia": "yjling2019@gmail.com"
   },
   "platforms": {
-    "ios": "7.0"
+    "ios": "8.0"
   },
   "source": {
-    "git": "https://github.com/MxABC/LBXScan.git",
-    "tag": "2.4.1"
+    "git": "https://github.com/yjling2019/LBXScan.git",
+    "tag": "2.5.2"
   },
   "requires_arc": true,
   "prefix_header_contents": "#import <Foundation/Foundation.h>",
